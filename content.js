@@ -12,6 +12,10 @@ function sleep(s) {
     return new Promise(resolve => setTimeout(resolve, s * 1000));
 }
 
+function getPlatform() {
+    if (window.location.hostname.includes('deepseek')) return 'deepseek';
+    return 'chatgpt';
+}
 
 // ------ HELPERS ------ // 
 function downloadFile(filename, content, type) {
@@ -62,24 +66,32 @@ async function initialize(restart = false) {
 
     console.log("Content script loaded")
 
-    const chatWindow = document.querySelector('body div > main.relative div[role="presentation"]')
+    const platform = getPlatform();
+    let chatWindow, topMenu;
+    
+    if (platform === 'chatgpt') {
+        chatWindow = document.querySelector('main');
+        topMenu = document.querySelector('#page-header');
+    } else {
+        const areas = document.querySelectorAll('.ds-scroll-area');
+        chatWindow = areas.length > 0 ? areas[areas.length - 1] : null;
+        topMenu = document.querySelector('._2be88ba'); 
+    }
+
     if (!chatWindow || chatWindow == undefined) {
         console.log("Chat window not found")
         return
     }
-
     console.log("Chat window found")
 
-    const topMenu = chatWindow.querySelector('.bg-token-main-surface-primary')
     if (!topMenu || topMenu == undefined) {
         console.log("Top menu not found")
         return
     }
-
     topMenu.classList.remove('justify-between')
     topMenu.classList.add('top_menu')
-
     console.log("Top menu found")
+
     const popupBtn = document.createElement('button')
     popupBtn.innerHTML = EXPORT_MSG
     popupBtn.className = "export_btn"
@@ -354,7 +366,17 @@ function exportChatContent(chatWindow, popupBtn) {
     console.log("Exporting chat")
     popupBtn.innerHTML = EXPORTING_MSG
 
-    chatMessages = chatWindow.querySelectorAll('article[data-testid*="conversation-turn"]')
+    const platform = getPlatform();
+    let chatMessages = [];
+
+    if (platform === 'chatgpt') {
+        chatMessages = chatWindow.querySelectorAll(
+        'article[data-testid*="conversation-turn"]'
+        );
+    } else {
+        chatMessages = document.querySelectorAll('.ds-message');
+    }
+
     if (!chatMessages || chatMessages == undefined || chatMessages.length == 0) {
         console.log("Chat messages not found")
         popupBtn.innerHTML = EXPORT_MSG
@@ -374,15 +396,31 @@ function exportChatContent(chatWindow, popupBtn) {
             continue
         }
 
-        let chatContent = chatMessage.innerText
+        let rawText = chatMessage.innerText.replace(/Regenerate|Copy/g, '').trim();
+        if (!rawText) continue;
 
-        if (i % 2 == 0) {
-            segregatedMessages.user.push(chatContent)
+        let isUser;
+        if (platform === 'chatgpt') {
+            isUser = (i % 2 === 0);
         } else {
-            segregatedMessages.ai.push(chatContent)
+            isUser = !chatMessage.querySelector('.ds-markdown');
         }
 
-        allMessages.push(chatContent)
+        let labeledContent;
+        if (platform === 'chatgpt') {
+            labeledContent = rawText;
+        } else {
+            const sender = isUser ? "You" : "DeepSeek";
+            labeledContent = `[${sender}]:\n${rawText}`;
+        }
+
+        if (isUser) {
+            segregatedMessages.user.push(labeledContent);
+        } else {
+            segregatedMessages.ai.push(labeledContent);
+        }
+
+        allMessages.push(labeledContent)
     }
 
     let exportData = allMessages

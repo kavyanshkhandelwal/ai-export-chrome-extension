@@ -22,7 +22,8 @@
         {
             "matches": [
                 "*://chatgpt.com/*",
-                "*://chat.openai.com/*"
+                "*://chat.openai.com/*",
+                "*://chat.deepseek.com/*"
             ],
             "js": [
                 "content.js"

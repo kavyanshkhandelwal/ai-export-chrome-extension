@@ -437,15 +437,16 @@ function exportChatContent(chatWindow, popupBtn) {
         },
         csv: () => {
             const rows = exportData.map(msg => `"${msg.replace(/"/g, '""')}"`);
-            downloadFile("chat.csv", rows.join("\n"), "text/csv");
+            downloadFile("chat.csv", "\uFEFF" + rows.join("\n"), "text/csv;charset=utf-8");
         },
         plain_text: () => {
-            downloadFile("chat.txt", exportData.join("\n\n"), "text/plain");
+            downloadFile("chat.txt", exportData.join("\n\n"), "text/plain;charset=utf-8");
         },
         word_text: () => {
-            const html = exportData.map(m => `<p>${escapeHTML(m)}</p>`).join("");
-            const wordDoc = `<html><body>${html}</body></html>`;
-            downloadFile("chat.doc", wordDoc, "application/msword");
+            const html = exportData.map(m => `<p style="font-family: Arial, sans-serif; white-space: pre-wrap;">${escapeHTML(m)}</p>`).join("");
+            const wordDoc = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><title>Export</title></head>
+                <body>${html}</body></html>`;
+            downloadFile("chat.doc", "\uFEFF" + wordDoc, "application/msword;charset=utf-8");
         },
         html: () => {
             const html = exportData.map(m => `<p>${escapeHTML(m)}</p>`).join("");

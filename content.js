@@ -54,6 +54,65 @@ function exportToPDF(html) {
     win.close()
 }
 
+function parseHTMLtoMarkdown(element) {
+    const clone = element.cloneNode(true);
+    const katexBlocks = clone.querySelectorAll('.katex');
+
+    katexBlocks.forEach(block => {
+        const annotation = block.querySelector('annotation[encoding="application/x-tex"]');
+        if(annotation){
+            const latex = annotation.textContent.trim();
+            block.replaceWith(document.createTextNode(` $$${latex}$$ `));
+        } else {
+            const mathML = block.querySelector('.katex-mathml');
+            if (mathML) mathML.remove();
+        }
+    });
+    
+    const tables = clone.querySelectorAll('table');
+    tables.forEach(table => {
+        let tableMd = "\n\n";
+        const rows = table.querySelectorAll('tr');
+        
+        rows.forEach((row, rowIndex) => {
+            const cells = row.querySelectorAll('th, td');
+            const cellText = Array.from(cells).map(c => c.innerText.trim().replace(/\n/g, ' ')).join(' | ');
+            tableMd += `| ${cellText} |\n`;
+
+            if(rowIndex === 0){
+                const separator = Array.from(cells).map(() => '---').join(' | ');
+                tableMd += `| ${separator} |\n`;
+            }
+        });
+        
+        tableMd += "\n";
+        table.replaceWith(document.createTextNode(tableMd));
+    });
+
+    const codeBlocks = clone.querySelectorAll('pre');
+    codeBlocks.forEach(pre => {
+        const code = pre.querySelector('code');
+        let lang = "";
+        if(code){
+             const classList = code.className || "";
+             const match = classList.match(/language-(\w+)/);
+             if(match){
+                lang = match[1];
+             } 
+        }
+        
+        const copyBtn = pre.querySelector('.ds-icon-button, button'); 
+        if(copyBtn){
+            copyBtn.remove();
+        } 
+        const codeContent = (code ? code.innerText : pre.innerText).trim();
+        const codeMd = `\n\`\`\`${lang}\n${codeContent}\n\`\`\`\n`;
+        pre.replaceWith(document.createTextNode(codeMd));
+    });
+
+    return clone.innerText;
+}
+
 // ------ MAIN INITIALIZATION ------ //
 async function initialize(restart = false) {
     if (restart) {
@@ -396,7 +455,14 @@ function exportChatContent(chatWindow, popupBtn) {
             continue
         }
 
-        let rawText = chatMessage.innerText.replace(/Regenerate|Copy/g, '').trim();
+        let rawText;
+        if(platform === 'deepseek'){
+            rawText = parseHTMLtoMarkdown(chatMessage).trim();
+        }else{
+            rawText = chatMessage.innerText.replace(/Regenerate|Copy/g, '').trim();
+        }
+
+        rawText = rawText.replace(/Regenerate|Copy|Download/g, '').trim();
         if (!rawText) continue;
 
         let isUser;
@@ -457,8 +523,8 @@ function exportChatContent(chatWindow, popupBtn) {
             exportToPDF(`<html><body>${html}</body></html>`);
         },
         markdown: () => {
-            const md = exportData.map(m => `- ${m}`).join("\n\n");
-            downloadFile("chat.md", md, "text/markdown");
+            const md = exportData.map(m => `### Message\n ${m}`).join("\n\n---\n\n");
+            downloadFile("chat.md", md, "text/markdown;charset=utf-8");
         }
     };
 
